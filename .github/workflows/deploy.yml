@@ -11,44 +11,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Create deployment package
+        run: zip -r deploy.zip . -x "*.git*" -x ".github/*" -x "__pycache__/*" -x "*.pyc"
+
+      - name: Deploy to Elastic Beanstalk
+        uses: einaregilsson/beanstalk-deploy@v22
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-
-      - name: Create and upload deployment package
-        run: |
-          zip -r deploy.zip . -x "*.git*" -x ".github/*" -x "__pycache__/*" -x "*.pyc"
-          BUCKET=$(aws elasticbeanstalk create-storage-location --query S3Bucket --output text)
-          aws s3 cp deploy.zip "s3://${BUCKET}/${{ secrets.EB_APP_NAME }}/${{ github.sha }}.zip" \
-            --acl bucket-owner-full-control
-          echo "S3_BUCKET=${BUCKET}" >> $GITHUB_ENV
-
-      - name: Create application version
-        run: |
-          aws elasticbeanstalk create-application-version \
-            --application-name "${{ secrets.EB_APP_NAME }}" \
-            --version-label "${{ github.sha }}" \
-            --source-bundle "S3Bucket=${S3_BUCKET},S3Key=${{ secrets.EB_APP_NAME }}/${{ github.sha }}.zip" \
-            --region us-east-1 2>/dev/null || true
-
-      - name: Deploy to environment
-        run: |
-          aws elasticbeanstalk update-environment \
-            --environment-name "${{ secrets.EB_ENV_NAME }}" \
-            --version-label "${{ github.sha }}" \
-            --region us-east-1
-
-      - name: Wait for deployment
-        run: |
-          echo "Waiting for environment to be Ready..."
-          aws elasticbeanstalk wait environment-updated \
-            --environment-names "${{ secrets.EB_ENV_NAME }}" \
-            --region us-east-1
-          HEALTH=$(aws elasticbeanstalk describe-environments \
-            --environment-names "${{ secrets.EB_ENV_NAME }}" \
-            --query "Environments[0].Health" --output text)
-          echo "Environment health: ${HEALTH}"
-          [ "$HEALTH" = "Green" ] || [ "$HEALTH" = "Ok" ]
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          application_name: ${{ secrets.EB_APP_NAME }}
+          environment_name: ${{ secrets.EB_ENV_NAME }}
+          version_label: ${{ github.sha }}
+          region: us-east-1
+          deployment_package: deploy.zip
+          use_existing_version_if_available: true
+          wait_for_environment_recovery: 120
