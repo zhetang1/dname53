@@ -45,6 +45,9 @@ jobs:
             --source-bundle "S3Bucket=${S3_BUCKET},S3Key=${{ secrets.EB_APP_NAME }}/${{ github.sha }}.zip" \
             --region us-east-1 2>/dev/null || true
 
+      - name: Wait for EB to index version
+        run: sleep 90
+
       - name: Deploy to environment
         run: |
           aws elasticbeanstalk update-environment \
