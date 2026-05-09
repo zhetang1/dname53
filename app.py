@@ -11,6 +11,26 @@ app = Flask(__name__)
 claude_client = anthropic.Anthropic()
 # Route 53 Domains API is only available in us-east-1
 r53 = boto3.client("route53domains", region_name="us-east-1")
+ssm = boto3.client("ssm", region_name="us-east-1")
+
+SSM_KEY = "/dname53/search-count"
+
+
+def get_search_count() -> int:
+    try:
+        resp = ssm.get_parameter(Name=SSM_KEY)
+        return int(resp["Parameter"]["Value"])
+    except Exception:
+        return 0
+
+
+def increment_search_count() -> int:
+    try:
+        count = get_search_count() + 1
+        ssm.put_parameter(Name=SSM_KEY, Value=str(count), Type="String", Overwrite=True)
+        return count
+    except Exception:
+        return 0
 
 
 def suggest_domains_claude(description: str) -> list[str]:
@@ -92,6 +112,11 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/api/stats")
+def stats():
+    return jsonify({"search_count": get_search_count()})
+
+
 @app.route("/api/suggest", methods=["POST"])
 def suggest():
     data = request.get_json(silent=True) or {}
@@ -112,7 +137,8 @@ def suggest():
     # Available domains first, then alphabetical within each group
     results.sort(key=lambda x: (not x["available"], x["domain"]))
 
-    return jsonify({"domains": results})
+    count = increment_search_count()
+    return jsonify({"domains": results, "search_count": count})
 
 
 if __name__ == "__main__":

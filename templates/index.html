@@ -23,6 +23,7 @@
     <div class="text-center mb-10">
 <!--      <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-600 text-white text-2xl mb-4 shadow-lg">🌐</div>-->
       <h1 class="text-4xl font-extrabold text-slate-900 tracking-tight mb-2">Domain Name Finder</h1>
+      <p id="search-count" class="text-sm text-slate-400 mt-2"></p>
     </div>
 
     <!-- Input card -->
@@ -77,6 +78,19 @@
   </div>
 
   <script>
+    async function loadCount() {
+      try {
+        const res = await fetch('/api/stats');
+        const data = await res.json();
+        updateCountDisplay(data.search_count);
+      } catch (_) {}
+    }
+
+    function updateCountDisplay(n) {
+      const el = document.getElementById('search-count');
+      if (el && n > 0) el.textContent = `${n.toLocaleString()} searches run`;
+    }
+
     async function searchDomains() {
       const description = document.getElementById('description').value.trim();
       if (!description) { showError('Please enter a project description.'); return; }
@@ -94,12 +108,15 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
         renderResults(data.domains);
+        if (data.search_count) updateCountDisplay(data.search_count);
       } catch (err) {
         showError('Error: ' + err.message);
       } finally {
         setLoading(false);
       }
     }
+
+    loadCount();
 
     function renderResults(domains) {
       const available = domains.filter(d => d.available);
