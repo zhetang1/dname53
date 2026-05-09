@@ -25,13 +25,32 @@ jobs:
           aws s3 cp deploy.zip "s3://${BUCKET}/${{ secrets.EB_APP_NAME }}/${{ github.sha }}.zip"
           echo "S3_BUCKET=${BUCKET}" >> $GITHUB_ENV
 
-      - name: Create application version
+      - name: Create and process application version
         run: |
           aws elasticbeanstalk create-application-version \
             --application-name "${{ secrets.EB_APP_NAME }}" \
             --version-label "${{ github.sha }}" \
             --source-bundle "S3Bucket=${S3_BUCKET},S3Key=${{ secrets.EB_APP_NAME }}/${{ github.sha }}.zip" \
+            --process \
             --region us-east-1 2>/dev/null || true
+
+          echo "Waiting for version to be processed..."
+          for i in $(seq 1 30); do
+            STATUS=$(aws elasticbeanstalk describe-application-versions \
+              --application-name "${{ secrets.EB_APP_NAME }}" \
+              --version-labels "${{ github.sha }}" \
+              --query "ApplicationVersions[0].Status" --output text)
+            echo "  Status: ${STATUS}"
+            if [ "$STATUS" = "PROCESSED" ]; then
+              echo "Version processed successfully"
+              break
+            fi
+            if [ "$STATUS" = "FAILED" ]; then
+              echo "Version processing failed"
+              exit 1
+            fi
+            sleep 10
+          done
 
       - name: Deploy
         run: |
