@@ -88,7 +88,7 @@
 
     function updateCountDisplay(n) {
       const el = document.getElementById('search-count');
-      if (el && n > 0) el.textContent = `${n.toLocaleString()} searches run`;
+      if (el) el.textContent = `${n.toLocaleString()} searches run`;
     }
 
     async function searchDomains() {
