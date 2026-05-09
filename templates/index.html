@@ -105,10 +105,12 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ description }),
         });
-        const data = await res.json();
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch (_) { throw new Error(`Server error (HTTP ${res.status})`); }
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
         renderResults(data.domains);
-        if (data.search_count) updateCountDisplay(data.search_count);
+        if (data.search_count != null) updateCountDisplay(data.search_count);
       } catch (err) {
         showError('Error: ' + err.message);
       } finally {

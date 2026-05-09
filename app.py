@@ -127,18 +127,18 @@ def suggest():
 
     try:
         domains = suggest_domains_claude(description)
+
+        # Check all domains concurrently (cap workers to respect AWS rate limits)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            results = list(executor.map(check_domain, domains))
+
+        # Available domains first, then alphabetical within each group
+        results.sort(key=lambda x: (not x["available"], x["domain"]))
+
+        count = increment_search_count()
+        return jsonify({"domains": results, "search_count": count})
     except Exception as e:
-        return jsonify({"error": f"AI suggestion failed: {e}"}), 500
-
-    # Check all domains concurrently (cap workers to respect AWS rate limits)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        results = list(executor.map(check_domain, domains))
-
-    # Available domains first, then alphabetical within each group
-    results.sort(key=lambda x: (not x["available"], x["domain"]))
-
-    count = increment_search_count()
-    return jsonify({"domains": results, "search_count": count})
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":
