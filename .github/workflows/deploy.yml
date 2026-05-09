@@ -18,23 +18,11 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Fix IMDS on instances
-        run: |
-          INSTANCE_IDS=$(aws elasticbeanstalk describe-environment-resources \
-            --environment-name "${{ secrets.EB_ENV_NAME }}" \
-            --query "EnvironmentResources.Instances[*].Id" \
-            --output text)
-          for id in $INSTANCE_IDS; do
-            aws ec2 modify-instance-metadata-options \
-              --instance-id "$id" --http-tokens optional --region us-east-1 || true
-          done
-
       - name: Upload deployment package
         run: |
           zip -r deploy.zip . -x "*.git*" -x ".github/*" -x "__pycache__/*" -x "*.pyc"
           BUCKET=$(aws elasticbeanstalk create-storage-location --query S3Bucket --output text)
-          aws s3 cp deploy.zip "s3://${BUCKET}/${{ secrets.EB_APP_NAME }}/${{ github.sha }}.zip" \
-            --acl bucket-owner-full-control
+          aws s3 cp deploy.zip "s3://${BUCKET}/${{ secrets.EB_APP_NAME }}/${{ github.sha }}.zip"
           echo "S3_BUCKET=${BUCKET}" >> $GITHUB_ENV
 
       - name: Create application version
