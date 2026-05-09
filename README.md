@@ -1,6 +1,6 @@
 # Domain Name Finder
 
-A web app that uses Claude AI to suggest domain names based on your project description, then checks availability and pricing on AWS Route 53.
+A web app that uses Claude AI to suggest domain names based on your project description, then checks availability and pricing on AWS Route 53 Domains.
 
 ## How it works
 
