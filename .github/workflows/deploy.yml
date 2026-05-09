@@ -45,23 +45,34 @@ jobs:
             --source-bundle "S3Bucket=${S3_BUCKET},S3Key=${{ secrets.EB_APP_NAME }}/${{ github.sha }}.zip" \
             --region us-east-1 2>/dev/null || true
 
-      - name: Wait for EB to index version
-        run: sleep 90
-
-      - name: Deploy to environment
+      - name: Deploy with retry
         run: |
-          aws elasticbeanstalk update-environment \
-            --environment-name "${{ secrets.EB_ENV_NAME }}" \
-            --version-label "${{ github.sha }}" \
-            --region us-east-1
+          for attempt in 1 2 3 4 5; do
+            echo "Deploy attempt ${attempt}..."
+            aws elasticbeanstalk update-environment \
+              --environment-name "${{ secrets.EB_ENV_NAME }}" \
+              --version-label "${{ github.sha }}" \
+              --region us-east-1 || true
 
-      - name: Wait for deployment and verify
-        run: |
-          aws elasticbeanstalk wait environment-updated \
-            --environment-names "${{ secrets.EB_ENV_NAME }}" \
-            --region us-east-1
-          VERSION=$(aws elasticbeanstalk describe-environments \
-            --environment-names "${{ secrets.EB_ENV_NAME }}" \
-            --query "Environments[0].VersionLabel" --output text)
-          echo "Deployed version: ${VERSION}"
-          [ "$VERSION" = "${{ github.sha }}" ] || (echo "Version mismatch — deploy failed" && exit 1)
+            aws elasticbeanstalk wait environment-updated \
+              --environment-names "${{ secrets.EB_ENV_NAME }}" \
+              --region us-east-1
+
+            VERSION=$(aws elasticbeanstalk describe-environments \
+              --environment-names "${{ secrets.EB_ENV_NAME }}" \
+              --query "Environments[0].VersionLabel" --output text)
+            echo "Deployed version: ${VERSION}"
+
+            if [ "$VERSION" = "${{ github.sha }}" ]; then
+              echo "Deployment successful on attempt ${attempt}"
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 5 ]; then
+              echo "Version mismatch, waiting 120s before retry..."
+              sleep 120
+            fi
+          done
+
+          echo "Deployment failed after 5 attempts"
+          exit 1
