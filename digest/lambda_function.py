@@ -166,13 +166,18 @@ def render_text(searches: list[dict], since: str) -> str:
 
 def lambda_handler(event, context):
     now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    since = get_last_run()
+    test_today = bool((event or {}).get("test_today"))
+    if test_today:
+        since = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat(timespec="seconds")
+    else:
+        since = get_last_run()
 
     new = fetch_new_searches(since)
     print(f"Found {len(new)} new searches since {since}")
 
     if not new:
-        set_last_run(now_iso)
+        if not test_today:
+            set_last_run(now_iso)
         return {"status": "no_new_searches", "since": since, "checked_at": now_iso}
 
     for s in new:
@@ -195,5 +200,6 @@ def lambda_handler(event, context):
         },
     )
 
-    set_last_run(now_iso)
+    if not test_today:
+        set_last_run(now_iso)
     return {"status": "sent", "count": len(new), "since": since, "checked_at": now_iso}
