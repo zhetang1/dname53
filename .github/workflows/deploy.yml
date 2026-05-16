@@ -1,4 +1,4 @@
-name: Deploy to AWS Elastic Beanstalk
+name: Deploy
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
 
 jobs:
   deploy:
+    name: Deploy to AWS Elastic Beanstalk
     runs-on: ubuntu-latest
 
     steps:
@@ -72,3 +73,48 @@ jobs:
             exit 1
           fi
           echo "Deployed successfully: ${VERSION}"
+
+  deploy-lambda:
+    name: Deploy daily digest Lambda
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for digest/ changes
+        id: changed
+        run: |
+          if git rev-parse HEAD~1 >/dev/null 2>&1 && \
+             ! git diff --name-only HEAD~1 HEAD | grep -qE '^(digest/|\.github/workflows/deploy\.yml$)'; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No digest/ changes — skipping Lambda deploy."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure AWS credentials
+        if: steps.changed.outputs.skip != 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Package and update Lambda
+        if: steps.changed.outputs.skip != 'true'
+        run: |
+          cd digest
+          zip -j lambda.zip lambda_function.py
+          aws lambda update-function-code \
+            --function-name dname53-daily-digest \
+            --zip-file fileb://lambda.zip \
+            --publish \
+            --region us-east-1 \
+            --query '{Version:Version,LastModified:LastModified,CodeSha256:CodeSha256}' \
+            --output table
+
+          aws lambda wait function-updated \
+            --function-name dname53-daily-digest \
+            --region us-east-1
+          echo "✓ Lambda updated"
