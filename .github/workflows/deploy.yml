@@ -113,8 +113,4 @@ jobs:
             --region us-east-1 \
             --query '{Version:Version,LastModified:LastModified,CodeSha256:CodeSha256}' \
             --output table
-
-          aws lambda wait function-updated \
-            --function-name dname53-daily-digest \
-            --region us-east-1
           echo "✓ Lambda updated"
